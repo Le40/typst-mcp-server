@@ -38,14 +38,25 @@ def compile_typst(source: str, output: str) -> dict:
             timeout=60
         )
 
+        if result.returncode != 0:
+            return {
+                "success": False,
+                "path": None,
+                "error": result.stderr.strip() or "Typst compilation failed",
+                "exit_code": result.returncode,
+                "stdout": result.stdout.strip(),
+                "stderr": result.stderr.strip(),
+            }
+
         return {
-            "success": result.returncode == 0,
-            "path": str(output_path) if result.returncode == 0 else None,
-            "error": result.stderr if result.returncode != 0 else None
+            "success": True,
+            "path": str(output_path),
+            "error": None,
         }
 
+
     except (ValueError, OSError, subprocess.TimeoutExpired) as error:
-        return {"success": False, "error": str(error)}
+        return {"success": False,"path": None,"error": str(error),}
     
 
 def list_files() -> list[str]:
@@ -164,7 +175,13 @@ def export_document(target: str, options: dict | None = None) -> dict:
         return {"success": False, "error": str(error)}
 
     if result.returncode != 0:
-        return {"success": False, "error": result.stderr or result.stdout}
+        return {
+            "success": False,
+            "error": result.stderr.strip() or result.stdout.strip() or "Export failed",
+            "exit_code": result.returncode,
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
 
     result_line = next(
         (line.removeprefix("EXPORT_RESULT=")
@@ -174,7 +191,12 @@ def export_document(target: str, options: dict | None = None) -> dict:
     )
 
     if result_line is None:
-        return {"success": False, "error": "Exporter did not report generated files"}
+        return {
+            "success": False,
+            "error": "Exporter did not report generated files",
+            "stdout": result.stdout.strip(),
+            "stderr": result.stderr.strip(),
+        }
 
     try:
         files = json.loads(result_line)["files"]
