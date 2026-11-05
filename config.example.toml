@@ -1,0 +1,51 @@
+
+# Typst MCP Server Configuration
+#
+# Copy this file to config.local.toml and adjust it for your project.
+# All relative project paths are resolved from the MCP server directory.
+
+# Location of the Typst project
+project_root = "../my-typst-project"
+
+# Directory for generated PDFs, relative to project_root
+output_dir = "output"
+
+# File access permissions
+[permissions]
+
+# Files and directories the agent can read
+# A trailing "/" indicates a directory and its subdirectories.
+read = [
+    "main.typ",
+    "templates/",
+    "content/",
+    "documents/"
+]
+
+# Directories where the agent can create new .typ files
+# Existing files cannot be overwritten.
+create = [
+    "documents/"
+]
+
+
+# OPTIONAL: Custom Exporter
+#
+# Omit this entire section if standard `typst compile` is sufficient.
+#
+# The custom exporter must print a line to stdout:
+# EXPORT_RESULT={"files":["output/report.pdf"]}
+#
+# Reported paths must exist inside output_dir.
+
+# [custom_exporter]
+# command = ["python"]
+# script = "scripts/export.py"
+# target_flag = "--document"
+# target_description = "Document identifier, e.g. quarterly_report"
+
+# [custom_exporter.options.format]
+# flag = "--format"
+# description = "Select the export format."
+# default = "pdf"
+# allowed = ["pdf", "both"]

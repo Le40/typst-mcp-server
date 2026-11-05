@@ -1,0 +1,14 @@
+# Private configuration and credentials
+.env
+config.local.toml
+
+# Python
+.venv/
+.vscode/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Local generated files
+*.log
+*.egg-info/
