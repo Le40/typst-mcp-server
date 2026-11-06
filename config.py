@@ -11,7 +11,7 @@ PROJECT_ROOT = (SERVER_DIR / settings["project_root"]).resolve()
 
 OUTPUT_DIR = PROJECT_ROOT / settings["output_dir"]
 
-READ_PATHS = settings["permissions"]["read"]
-CREATE_PATHS = settings["permissions"]["create"]
+READ_RULES = settings["permissions"]["read"]
+CREATE_RULES = settings["permissions"]["create"]
 
 CUSTOM_EXPORTER = settings.get("custom_exporter")

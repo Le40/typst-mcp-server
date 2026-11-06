@@ -3,13 +3,13 @@ import re
 import subprocess
 from pathlib import Path
 
-from config import CREATE_PATHS, CUSTOM_EXPORTER, OUTPUT_DIR, PROJECT_ROOT, READ_PATHS
+from config import CREATE_RULES, CUSTOM_EXPORTER, OUTPUT_DIR, PROJECT_ROOT, READ_RULES
 
 
 def compile_typst(source: str, output: str) -> dict:
     try:
         # Validate source using read permissions
-        source_path = get_allowed_path(source, READ_PATHS)
+        source_path = get_permitted_file(source, READ_RULES)
 
         if not source_path.is_file() or source_path.suffix != ".typ":
             raise ValueError("Invalid Typst source")
@@ -59,47 +59,52 @@ def compile_typst(source: str, output: str) -> dict:
         return {"success": False,"path": None,"error": str(error),}
     
 
-def list_files() -> list[str]:
-    result = []
+def list_project_files() -> list[str]:
+    files = set()
 
-    for file in PROJECT_ROOT.rglob("*"):
-        if not file.is_file() or file.suffix not in (".typ", ".md", ".txt"):
-            continue
+    for location in READ_RULES:
+        path = PROJECT_ROOT / location
 
-        relative = file.relative_to(PROJECT_ROOT)
+        if location.endswith("/"):
+            candidates = path.rglob("*") if path.is_dir() else []
+        else:
+            candidates = [path]
 
-        try:
-            get_allowed_path(str(relative), READ_PATHS)
-            result.append(relative.as_posix())
-        except ValueError:
-            continue
+        for file in candidates:
+            if not file.is_file():
+                continue
 
-    return sorted(result)
+            relative_path = file.relative_to(PROJECT_ROOT).as_posix()
+
+            try:
+                get_permitted_file(relative_path, READ_RULES)
+                files.add(relative_path)
+            except (ValueError, OSError):
+                continue
+
+    return sorted(files)
 
 
 def read_file(path: str) -> str:
-    target = get_allowed_path(path, READ_PATHS)
+    target_path = get_permitted_file(path, READ_RULES)
 
-    if not target.is_file() or target.suffix not in (".typ", ".md", ".txt"):
-        raise ValueError("Not a readable text file")
+    if not target_path.is_file():
+        raise ValueError("File type not allowed")
 
-    return target.read_text(encoding="utf-8")
+    return target_path.read_text(encoding="utf-8")
 
 
 def create_file(path: str, content: str) -> dict:
     try:
-        target = get_allowed_path(path, CREATE_PATHS)
+        target_path = get_permitted_file(path, CREATE_RULES)
 
-        if target.suffix != ".typ":
-            raise ValueError("Only Typst files can be created")
-
-        if not target.parent.is_dir():
+        if not target_path.parent.is_dir():
             raise ValueError("Destination directory does not exist")
 
-        with target.open("x", encoding="utf-8") as file:
+        with target_path.open("x", encoding="utf-8") as file:
             file.write(content)
 
-        return {"success": True, "path": str(target)}
+        return {"success": True, "path": str(target_path)}
 
     except (ValueError, FileExistsError) as error:
         return {"success": False, "error": str(error)}
@@ -127,6 +132,24 @@ def get_allowed_path(path: str, allowed_paths: list[str]) -> Path:
             return target
         
     raise ValueError("Access denied")
+
+def get_permitted_file(path: str, rules: dict) -> Path:
+    # Check path permissions and prevent traversal
+    file_path = get_allowed_path(path, list(rules))
+
+    # Check file extension for the matching rule
+    for location, extensions in rules.items():
+        allowed_path = (PROJECT_ROOT / location).resolve()
+
+        if location.endswith("/"):
+            matches = file_path.is_relative_to(allowed_path)
+        else:
+            matches = file_path == allowed_path
+
+        if matches and file_path.suffix.lower() in extensions:
+            return file_path
+
+    raise ValueError("File type not allowed")
 
 
 def export_document(target: str, options: dict | None = None) -> dict:

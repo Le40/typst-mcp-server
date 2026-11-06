@@ -1,3 +1,6 @@
+
+from pathlib import Path
+
 import pytest
 
 import tools
@@ -5,67 +8,135 @@ import tools
 
 @pytest.fixture
 def project(tmp_path, monkeypatch):
-    read_dir = tmp_path / "source"
-    create_dir = tmp_path / "generated"
+    source = tmp_path / "source"
+    generated = tmp_path / "generated"
+    inbox = tmp_path / "inbox"
 
-    read_dir.mkdir()
-    create_dir.mkdir()
+    source.mkdir()
+    generated.mkdir()
+    inbox.mkdir()
 
-    (read_dir / "example.typ").write_text(
+    (source / "example.typ").write_text(
         "= Example document", encoding="utf-8"
+    )
+    (source / "notes.md").write_text(
+        "# Notes", encoding="utf-8"
+    )
+    (source / "script.py").write_text(
+        "print('test')", encoding="utf-8"
+    )
+    (inbox / "job.md").write_text(
+        "# Job description", encoding="utf-8"
     )
 
     monkeypatch.setattr(tools, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(tools, "READ_PATHS", ["source/"])
-    monkeypatch.setattr(tools, "CREATE_PATHS", ["generated/"])
+
+    monkeypatch.setattr(tools, "READ_RULES", {
+        "source/": [".typ", ".md"],
+        "inbox/": [".md"],
+    })
+
+    monkeypatch.setattr(tools, "CREATE_RULES", {
+        "generated/": [".typ"],
+        "inbox/": [".md"],
+    })
 
     return tmp_path
 
 
+# READ PERMISSIONS
+
 def test_allowed_read(project):
-    result = tools.read_file("source/example.typ")
-    assert result == "= Example document"
+    path = tools.get_permitted_file(
+        "source/example.typ", tools.READ_RULES
+    )
+    assert path.read_text(encoding="utf-8") == "= Example document"
 
 
-def test_forbidden_read(project):
-    with pytest.raises(ValueError, match="Access denied"):
-        tools.read_file("../secrets.txt")
+def test_allowed_markdown_read(project):
+    path = tools.get_permitted_file(
+        "inbox/job.md", tools.READ_RULES
+    )
+    assert path.is_file()
 
 
-def test_allowed_creation(project):
-    result = tools.create_file("generated/new.typ", "= New document")
+def test_forbidden_extension_read(project):
+    with pytest.raises(ValueError):
+        tools.get_permitted_file(
+            "source/script.py", tools.READ_RULES
+        )
 
+
+def test_forbidden_path_read(project):
+    with pytest.raises(ValueError):
+        tools.get_permitted_file(
+            "../secret.typ", tools.READ_RULES
+        )
+
+
+# CREATE PERMISSIONS
+
+def test_allowed_create(project):
+    result = tools.create_file("generated/new.typ", "= New")
     assert result["success"] is True
-    assert (project / "generated" / "new.typ").is_file()
+    assert (project / "generated/new.typ").exists()
+
+
+def test_allowed_markdown_create(project):
+    result = tools.create_file("inbox/new-job.md", "# New job")
+    assert result["success"] is True
+    assert (project / "inbox/new-job.md").exists()
+
+
+def test_forbidden_extension_create(project):
+    result = tools.create_file("generated/test.md", "# Not allowed")
+    assert result["success"] is False
+    assert not (project / "generated/test.md").exists()
+
+
+def test_forbidden_path_create(project):
+    result = tools.create_file("source/new.typ", "= Not allowed")
+    assert result["success"] is False
+    assert not (project / "source/new.typ").exists()
 
 
 def test_prevent_overwrite(project):
-    tools.create_file("generated/new.typ", "= Original")
+    file = project / "generated/existing.typ"
+    file.write_text("Original", encoding="utf-8")
 
-    result = tools.create_file("generated/new.typ", "= Replacement")
-
-    assert result["success"] is False
-    assert (project / "generated" / "new.typ").read_text() == "= Original"
-
-
-def test_forbidden_creation(project):
-    result = tools.create_file("source/unauthorized.typ", "= Test")
+    result = tools.create_file("generated/existing.typ", "Changed")
 
     assert result["success"] is False
-    assert not (project / "source" / "unauthorized.typ").exists()
+    assert file.read_text(encoding="utf-8") == "Original"
 
-def test_symlink_escape(project, tmp_path):
-    outside = tmp_path.parent / f"{tmp_path.name}-outside"
-    outside.mkdir()
 
-    (outside / "secret.typ").write_text("SECRET")
+# FILE LISTING
 
-    link = project / "source" / "external"
+def test_list_only_permitted_files(project):
+    result = tools.list_project_files()
+    files = result["files"] if isinstance(result, dict) else result
+
+    assert "source/example.typ" in files
+    assert "source/notes.md" in files
+    assert "inbox/job.md" in files
+
+    assert "source/script.py" not in files
+
+
+# SYMLINK SECURITY
+
+def test_symlink_escape(project):
+    outside = project.parent / f"{project.name}-outside.typ"
+    outside.write_text("Secret", encoding="utf-8")
+
+    link = project / "source/linked.typ"
 
     try:
-        link.symlink_to(outside, target_is_directory=True)
+        link.symlink_to(outside)
     except (OSError, NotImplementedError):
-        pytest.skip("Symlinks not available on this system")
+        pytest.skip("Symlinks unavailable on this system")
 
-    with pytest.raises(ValueError, match="Access denied"):
-        tools.read_project_file("source/external/secret.typ")
+    with pytest.raises(ValueError):
+        tools.get_permitted_file(
+            "source/linked.typ", tools.READ_RULES
+        )

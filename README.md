@@ -35,9 +35,14 @@ For example:
 project_root = "../my-typst-project"
 output_dir = "output"
 
-[permissions]
-read = ["main.typ", "templates/", "content/"]
-create = ["documents/"]
+[permissions.read]
+"main.typ" = [".typ"]
+"templates/" = [".typ"]
+"content/" = [".typ", ".md"]
+
+[permissions.create]
+"documents/" = [".typ"]
+"inbox/" = [".md", ".txt"]
 ```
 
 The server checks requested paths against these permissions. New files are created using Python's exclusive creation mode, so existing files cannot be overwritten through the creation tool.
