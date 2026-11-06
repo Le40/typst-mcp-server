@@ -1,10 +1,9 @@
-from pathlib import Path
-import re
 import json
+import re
 import subprocess
-from config import (
-    PROJECT_ROOT, OUTPUT_DIR, READ_PATHS, CREATE_PATHS, CUSTOM_EXPORTER
-)
+from pathlib import Path
+
+from config import CREATE_PATHS, CUSTOM_EXPORTER, OUTPUT_DIR, PROJECT_ROOT, READ_PATHS
 
 
 def compile_typst(source: str, output: str) -> dict:
@@ -33,6 +32,7 @@ def compile_typst(source: str, output: str) -> dict:
                 str(output_path)
             ],
             cwd=PROJECT_ROOT,
+            check=False,
             capture_output=True,
             text=True,
             timeout=60
@@ -167,6 +167,7 @@ def export_document(target: str, options: dict | None = None) -> dict:
         result = subprocess.run(
             command,
             cwd=PROJECT_ROOT,
+            check=False,
             capture_output=True,
             text=True,
             timeout=120

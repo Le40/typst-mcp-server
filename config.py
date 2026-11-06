@@ -1,5 +1,5 @@
-from pathlib import Path
 import tomllib
+from pathlib import Path
 
 SERVER_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = SERVER_DIR / "config.local.toml"
